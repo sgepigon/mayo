@@ -1,1 +1,22 @@
-{}
+{:linters
+ {:consistent-alias
+  {:aliases {clojure.spec.alpha s
+             clojure.spec.gen.alpha sgen
+             clojure.spec.test.alpha stest
+             sgepigon.mayo.experimental.interceptors exp.ics
+             sgepigon.mayo.instrument is
+             sgepigon.mayo.instrument.specs is.specs
+             sgepigon.mayo.interceptor ic
+             sgepigon.mayo.interceptor.specs ic.specs}}
+  :docstring-leading-trailing-whitespace {:level :warning}
+  :docstring-no-summary {:level :warning}
+  :keyword-binding {:level :warning}
+  :main-without-gen-class {:level :warning}
+  :missing-docstring {:level :warning}
+  :namespace-name-mismatch {:level :warning}
+  :reduce-without-init {:level :warning}
+  :redundant-fn-wrapper {:level :warning}
+  :refer {:exclude [clojure.test]
+          :level :warning}
+  :unsorted-required-namespaces {:level :warning}
+  :used-underscored-binding {:level :warning}}}
