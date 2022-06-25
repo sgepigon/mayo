@@ -1,9 +1,6 @@
 (ns sgepigon.mayo.instrument
   (:require
-   [clojure.spec.alpha :as s]
-   [sgepigon.mayo.instrument.specs :as is.specs]
-   [sgepigon.mayo.interceptor :as ic]
-   [sgepigon.mayo.interceptor.specs :as ic.specs]))
+   [sgepigon.mayo.interceptor :as ic]))
 
 ;;;; Implementation
 
@@ -38,11 +35,6 @@
 
 ;;;; API
 
-(s/fdef instrument
-  :args (s/cat :syms-ics (s/map-of ::is.specs/sym
-                                   (s/coll-of ::ic.specs/interceptor)))
-  :ret (s/coll-of ::is.specs/sym))
-
 (defn instrument
   "Takes a map of namespace-qualified symbols to collection of interceptors.
 
@@ -55,10 +47,6 @@
                     (swap! instrumented-vars assoc sym interceptors)
                     sym)))
           syms-ics)))
-
-(s/fdef unstrument
-  :args (s/cat :syms (s/? (s/coll-of ::is.specs/sym)))
-  :ret (s/coll-of ::is.specs/sym))
 
 (defn unstrument
   "Remove instrumentation for a collection of namespace-qualified symbols `syms`.

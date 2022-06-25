@@ -41,32 +41,3 @@
               (assoc ctx :error {:msg ":ret spec failed"
                                  :map {:spec-failed ed}})
               ctx))})
-
-(defn fspec
-  "Slightly more sophisticated instrumentation interceptor for clojure.spec.
-
-  Takes `opts`: a map of fspec keys (:args, :ret, :fn) to booleans. When truthy,
-  enable checking of that key."
-  [opts]
-  (letfn [(->args [ctx] (-> ctx :request :args))
-          (->ret [ctx] (-> ctx :response :ret))
-          (->fn [ctx] {:args (->args ctx) :ret (->ret ctx)})
-          (stage-fn
-            ([fspec-k data-fn]
-             (stage-fn fspec-k data-fn nil))
-            ([fspec-k data-fn ctx-fn]
-             (fn validate-fn [ctx]
-               (if-let [ed (some-> ctx :request :sym s/get-spec fspec-k
-                                   (s/explain-data (data-fn ctx)))]
-                 (cond-> ctx
-                   true (assoc :error {:msg (str fspec-k " spec failed")
-                                       :data {:spec-failed ed}})
-                   ctx-fn ctx-fn)
-                 ctx))))]
-    (cond-> {:name ::fspec}
-      (:args opts) (assoc :enter (stage-fn :args ->args #(ic/halt % true)))
-      (:ret opts) (assoc :leave (stage-fn :ret ->ret))
-      (:fn opts) (update :leave (fn [f]
-                                  (if (some? f)
-                                    (comp (stage-fn :fn ->fn) f)
-                                    (stage-fn :fn ->fn)))))))

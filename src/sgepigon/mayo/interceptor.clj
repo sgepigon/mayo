@@ -1,13 +1,6 @@
-(ns sgepigon.mayo.interceptor
-  (:require
-   [clojure.spec.alpha :as s]
-   [sgepigon.mayo.interceptor.specs :as ic.specs]))
+(ns sgepigon.mayo.interceptor)
 
 ;;;; Implementation
-
-(defn- halt? [context]
-  (and (empty? (::queue context))
-       (empty? (::stack context))))
 
 (defn- skip? [context]
   (contains? context ::skip?))
@@ -51,11 +44,6 @@
 
 ;;;; API
 
-(s/fdef enqueue
-  :args (s/cat :context ::ic.specs/context
-               :interceptors (s/coll-of ::ic.specs/interceptor))
-  :ret ::ic.specs/context)
-
 (defn enqueue
   "Add `interceptors` to `context`'s queue."
   [context interceptors]
@@ -64,22 +52,12 @@
           (fnil into (clojure.lang.PersistentQueue/EMPTY))
           interceptors))
 
-(s/fdef terminate
-  :args (s/cat :context ::ic.specs/context)
-  :ret ::ic.specs/context)
-
 (defn terminate
   "Short circuit into the :leave stage."
   [{::keys [queue] :as context}]
   (-> context
       (update ::stack (fnil into []) queue)
       (update ::queue empty)))
-
-(s/fdef halt
-  :args (s/cat :context ::ic.specs/context
-               :skip? (s/? boolean?))
-  :ret (s/and ::ic.specs/context
-              halt?))
 
 (defn halt
   "Short circuit, avoiding remaining interceptors in :enter or :leave stages.
@@ -93,11 +71,6 @@
        (update ::stack empty)
        (update ::queue empty)
        (assoc ::skip? skip?))))
-
-(s/fdef execute
-  :args (s/cat :context ::ic.specs/context
-               :interceptors (s/coll-of ::ic.specs/interceptor))
-  :ret ::ic.specs/context)
 
 (defn execute
   "Execute the interceptor chain."

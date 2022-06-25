@@ -4,6 +4,7 @@
              clojure.spec.gen.alpha sgen
              clojure.spec.test.alpha stest
              sgepigon.mayo.experimental.interceptors exp.ics
+             sgepigon.mayo.extensions.spec.alpha ext.s
              sgepigon.mayo.instrument is
              sgepigon.mayo.instrument.specs is.specs
              sgepigon.mayo.interceptor ic

@@ -1,9 +1,13 @@
 (ns sgepigon.mayo.interceptor.specs
   (:require
    [clojure.spec.alpha :as s]
-   [sgepigon.mayo.instrument.specs :as is.specs]
+   [sgepigon.mayo.instrument.specs :as-alias is.specs]
    [sgepigon.mayo.interceptor :as-alias ic]
    [sgepigon.mayo.interceptor.specs.errors :as-alias ic.specs.errors]))
+
+(defn- halt? [context]
+  (and (empty? (::ic/queue context))
+       (empty? (::ic/stack context))))
 
 ;;;; Inteceptor specs
 
@@ -45,3 +49,23 @@
   (s/keys :req-un [::request]
           :opt-un [::response]
           :opt [::ic/queue ::ic/stack ::ic/errors]))
+
+(s/fdef enqueue
+  :args (s/cat :context ::context
+               :interceptors (s/coll-of ::interceptor))
+  :ret ::context)
+
+(s/fdef terminate
+  :args (s/cat :context ::context)
+  :ret ::context)
+
+(s/fdef halt
+  :args (s/cat :context ::context
+               :skip? (s/? boolean?))
+  :ret (s/and ::context
+              halt?))
+
+(s/fdef execute
+  :args (s/cat :context ::context
+               :interceptors (s/coll-of ::interceptor))
+  :ret ::context)

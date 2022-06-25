@@ -4,7 +4,9 @@
    [clojure.spec.test.alpha :as stest]
    [clojure.test :refer [deftest is testing]]
    [sgepigon.mayo.experimental.interceptors :as exp.ics]
-   [sgepigon.mayo.interceptor :as ic]))
+   [sgepigon.mayo.extensions.spec.alpha :as ext.s]
+   [sgepigon.mayo.interceptor :as ic]
+   [sgepigon.mayo.interceptor.specs]))
 
 ;;;; Helper functions
 
@@ -50,8 +52,9 @@
         badceptor {:name ::badceptor
                    :enter #(update % ::badceptor inc)
                    :leave #(update % ::badceptor inc)}
+        ics [badceptor]
         executed (-> (apply wrap->ctx `test-fn args)
-                     (ic/execute [badceptor]))]
+                     (ic/execute ics))]
     (testing "Issues with interceptors themselves are captured in
     `::ic/errors.`"
       (is (= (apply test-fn args) (-> executed :response :ret)))
@@ -64,9 +67,58 @@
                        {}
                        (::ic/errors executed))))))))
 
+(deftest fspec-test
+  (let [test-sym `test-fn
+        default-ics [(ext.s/fspec)]
+        no-fail-fast-ics [(ext.s/fspec {:args true :fail-fast? false})]
+        valid-args '(1)
+        invalid-args '(1.0)
+        valid-ctx (apply wrap->ctx test-sym valid-args)
+        invalid-ctx (apply wrap->ctx test-sym invalid-args)
+        valid-executed (ic/execute valid-ctx default-ics)
+        invalid-executed (ic/execute invalid-ctx default-ics)
+        no-fail-fast-executed (ic/execute invalid-ctx no-fail-fast-ics)]
+    (testing "`ext.s/fspec` doesn't affect `:request` or `:response` values."
+      (is (= test-sym
+             (-> valid-executed :request :sym)
+             (-> invalid-executed :request :sym)
+             (-> no-fail-fast-executed :request :sym)))
+      (is (= (:request valid-ctx) (:request valid-executed)))
+      (is (= (:request invalid-ctx)
+             (:request invalid-executed)
+             (:request no-fail-fast-executed)))
+      (is (== (apply test-fn valid-args)
+              (-> valid-executed :response :ret)
+              (-> no-fail-fast-executed :response :ret))))
+    (testing "Default `ext.s/fspec` fails fast and does not produce a
+    `:response` map."
+      (is (::ic/skip? invalid-executed))
+      (is (not (::ic/skip? no-fail-fast-executed)))
+      (is (not (contains? invalid-executed :response)))
+      (is (contains? no-fail-fast-executed :response)))
+    (testing "`:error` data"
+      (is (not (contains? valid-executed :error)))
+      (is (contains? invalid-executed :error))
+      (is (contains? no-fail-fast-executed :error))
+      (is (= (str "Call to " test-sym " did not conform to spec.")
+             (-> invalid-executed :error :msg)
+             (-> no-fail-fast-executed :error :msg)))
+      (is (= invalid-args
+             (-> invalid-executed :request :args)
+             (-> no-fail-fast-executed :request :args)
+             (-> invalid-executed :error :data ::s/args)
+             (-> no-fail-fast-executed :error :data ::s/args)))
+      (testing "`stest/instrument` compatibility"
+        (is (= :instrument
+               (-> invalid-executed :error :data ::s/failure)
+               (-> no-fail-fast-executed :error :data ::s/failure))
+            "`:clojure.spec.alpha/failure :instrument`")))))
+
 (comment
 
+  (stest/unstrument)
+
   (ic/execute (wrap->ctx `test-fn 2.0)
-              [(exp.ics/fspec {:args true}) exp.ics/no-op])
+              [(ext.s/fspec {:args true}) exp.ics/no-op])
 
   (keys (ns-publics *ns*)))

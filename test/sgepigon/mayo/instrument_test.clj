@@ -2,7 +2,9 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [sgepigon.mayo.experimental.interceptors :as exp.ics]
+   [sgepigon.mayo.extensions.spec.alpha :as ext.s]
    [sgepigon.mayo.instrument :as is]
+   [sgepigon.mayo.instrument.specs]
    [sgepigon.mayo.interceptor :as ic]
    [sgepigon.mayo.interceptor-test :as ic-test]))
 
@@ -19,7 +21,7 @@
 (deftest *nstrument-test
   (let [test-syms [`ic-test/test-fn]
         raw @#'ic-test/test-fn
-        ics [(exp.ics/fspec {:args true :ret true :fn true})
+        ics [(ext.s/fspec {:args true :ret true :fn true})
              exp.ics/no-op]
         instrumented-syms (is/instrument
                            (into {} (map (fn [v] [v ics])) test-syms))
@@ -36,13 +38,13 @@
           "The original function should be captured as `:raw` metadata.")
       (is (= (raw 1) (#'ic-test/test-fn 1))
           "Instrumented function gives the same result.")
-      (testing "`exp.ics/fspec`"
+      (testing "`ext.s/fspec`"
         (is (thrown? Exception (#'ic-test/test-fn 2.0))
-            "`exp.ics/fspec` checks `:args` satisfy `int?`.")
+            "`ext.s/fspec` checks `:args` satisfy `int?`.")
         (is (try (#'ic-test/test-fn 2.0)
                  (catch Exception e
                    (-> e ex-data ::ic/context :response nil?)))
-            "If `exp.ics/fspec` fails on `:args`, the function shouldn't run at
+            "If `ext.s/fspec` fails on `:args`, the function shouldn't run at
             all i.e. no `:response` map.")))
     (let [unstrumented-syms (is/unstrument)]
       (testing "Unstrumentation"
@@ -52,5 +54,5 @@
         (is (identical? raw @#'ic-test/test-fn)
             "The original function should be restored after unstrumentation.")
         (is (= (raw 2.0) (#'ic-test/test-fn 2.0))
-            "`exp.ics/fspec` should have no effect on unstrumented
+            "`ext.s/fspec` should have no effect on unstrumented
             functions.")))))
