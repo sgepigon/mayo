@@ -1,4 +1,6 @@
-{:linters
+{:ns-groups [{:pattern "^sgepigon\\.mayo\\.\\w+\\.impl(\\.\\w+)*$"
+              :name impl}]
+ :linters
  {:consistent-alias
   {:aliases {clojure.spec.alpha s
              clojure.spec.gen.alpha sgen
@@ -8,6 +10,7 @@
              sgepigon.mayo.instrument is
              sgepigon.mayo.instrument.specs is.specs
              sgepigon.mayo.interceptor ic
+             sgepigon.mayo.interceptor.impl ic.impl
              sgepigon.mayo.interceptor.specs ic.specs}}
   :docstring-leading-trailing-whitespace {:level :warning}
   :docstring-no-summary {:level :warning}
@@ -20,4 +23,6 @@
   :refer {:exclude [clojure.test]
           :level :warning}
   :unsorted-required-namespaces {:level :warning}
-  :used-underscored-binding {:level :warning}}}
+  :used-underscored-binding {:level :warning}}
+ :config-in-ns
+ {impl {:linters {:missing-docstring {:level :off}}}}}
