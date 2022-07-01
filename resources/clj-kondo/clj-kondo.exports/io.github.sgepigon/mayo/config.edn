@@ -1,0 +1,6 @@
+{:ns-groups [{:pattern "^sgepigon\\.mayo\\.\\w+\\.impl(\\.\\w+)*$"
+              :name impl}]
+ :linters
+ {:discouraged-namespace
+  {impl
+   {:message "Implementation namespaces are not part of the public API. Expect breaking changes."}}}}
