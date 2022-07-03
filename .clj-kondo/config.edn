@@ -22,7 +22,20 @@
   :redundant-fn-wrapper {:level :warning}
   :refer {:exclude [clojure.test]
           :level :warning}
+  :shadowed-var {:level :warning
+                 :exclude [ns]
+                 :suggest {fn f
+                           key k
+                           keys ks
+                           keyword k
+                           map m
+                           name n
+                           seq xs
+                           symbol sym
+                           val v
+                           vals vs}}
   :unsorted-required-namespaces {:level :warning}
   :used-underscored-binding {:level :warning}}
  :config-in-ns
- {impl {:linters {:missing-docstring {:level :off}}}}}
+ {impl {:linters {:missing-docstring {:level :off}}}}
+ :auto-load-configs false}
