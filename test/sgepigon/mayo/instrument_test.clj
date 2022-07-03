@@ -15,7 +15,7 @@
   "Returns true if a var is instrumented."
   [v]
   ;; TODO Put instrumented metadata var and function? Alternatively I can see if
-  ;; the symbol is in `instrumented-vars`
+  ;; the symbol is in `is/registry`
   (contains? (meta v) ::is/context))
 
 (deftest *nstrument-test

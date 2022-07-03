@@ -10,11 +10,11 @@
   registry
   (atom ^::registry {}))
 
-(defn- register [sym context]
-  (swap! registry assoc sym context))
+(defn- register! [sym context]
+  (swap! registry assoc sym (assoc context ::instrument true)))
 
-(defn- unregister [sym]
-  (swap! registry dissoc sym))
+(defn- unregister! [sym]
+  (swap! registry update sym dissoc ::instrument))
 
 (defn- var->raw [v]
   (-> v meta ::context :request :raw))
@@ -52,19 +52,20 @@
   ([syms-ics]
    (instrument syms-ics {}))
   ([syms-ics opts]
-   (locking registry
-     (into []
-           (comp
-            (filter (comp qualified-symbol? first))
-            (map (fn execute [[sym ics]]
-                   (-> {:request {:sym sym :interceptors ics}}
-                       (ic/enqueue (or (:interceptors opts) []))
-                       ic.impl/enter)))
-            (keep (fn [{{:keys [sym interceptors]} :request :as ctx}]
-                    (when (instrument-1 sym interceptors)
-                      (register sym ctx)
-                      sym))))
-           syms-ics))))
+   (let [is-ics (or (:interceptors opts) [])]
+     (locking registry
+       (into []
+             (comp
+              (filter (comp qualified-symbol? first))
+              (map (fn execute [[sym fn-ics]]
+                     (-> {:request {:sym sym :interceptors fn-ics}}
+                         (ic/enqueue is-ics)
+                         ic.impl/enter)))
+              (keep (fn [{{:keys [sym interceptors]} :request :as ctx}]
+                      (when (instrument-1 sym interceptors)
+                        (register! sym ctx)
+                        sym))))
+             syms-ics)))))
 
 (defn unstrument
   "Remove instrumentation for a collection of namespace-qualified symbols `syms`.
@@ -77,14 +78,20 @@
    (locking registry
      (into []
            (comp
+            (filter (comp ::instrument second))
             (map (fn execute [[_ context]]
                    (ic.impl/leave context)))
             (keep (fn [{{:keys [sym]} :request}]
                     (when (unstrument-1 sym)
-                      (unregister sym)
+                      (unregister! sym)
                       sym))))
            (cond-> @registry
              (-> syms meta ::registry not) (select-keys syms))))))
+
+(defn errors
+  "Return a collection of errors instrumenting or unstrumenting `sym`."
+  [sym]
+  (get-in @registry [sym ::ic/errors]))
 
 (comment
   (require '[clojure.spec.test.alpha :as stest])

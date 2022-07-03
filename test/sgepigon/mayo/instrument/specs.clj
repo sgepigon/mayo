@@ -25,10 +25,12 @@
 (s/def ::ic.impl/request
   (s/keys :req-un [::sym ::ic.specs/interceptors]))
 (s/def ::ic.impl/response any?)
+(s/def ::is/instrument
+  (s/nilable boolean?))
 
 (s/def ::ic.impl/context
   (s/keys :req-un [::ic.impl/request]
-          :opt-un [::ic.impl/response]
+          :opt-un [::ic.impl/response ::is/instrument]
           :opt [::ic/queue ::ic/stack ::ic/errors]))
 
 (s/def ::ic.impl/registry
