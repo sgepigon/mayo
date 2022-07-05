@@ -31,7 +31,7 @@
 (s/def ::ic.impl/context
   (s/keys :req-un [::ic.impl/request]
           :opt-un [::ic.impl/response ::is/instrument]
-          :opt [::ic/queue ::ic/stack ::ic/errors]))
+          :opt [::ic/queue ::ic/stack]))
 
 (s/def ::ic.impl/registry
   (s/and #(-> % meta ::is/registry)

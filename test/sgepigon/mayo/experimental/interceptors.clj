@@ -19,7 +19,7 @@
   {:enter (fn [ctx]
             (if (< (rand) sampling-rate)
               ctx
-              (ic/halt ctx)))})
+              (ic/terminate ctx)))})
 
 (def fspec-basic
   "Basic instrumentation interceptor for clojure.spec.
@@ -33,7 +33,7 @@
               (-> ctx
                   (assoc :error {:msg ":args spec failed"
                                  :map {:spec-failed ed}})
-                  (ic/halt true))
+                  ic/terminate)
               ctx))
    :leave (fn [{:keys [request response] :as ctx}]
             (if-let [ed (some-> request :sym s/get-spec :ret

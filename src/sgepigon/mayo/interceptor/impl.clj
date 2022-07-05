@@ -4,49 +4,69 @@
 
 ;;;; Implementation
 
-(defn skip? [context]
-  (contains? context ::ic/skip?))
+(defn empty-stack []
+  [])
+(defn empty-queue []
+  (clojure.lang.PersistentQueue/EMPTY))
+
+(defn push-stack [to interceptor]
+  (conj (or to (empty-stack)) interceptor))
+
+(defn into-stack [to from]
+  (into (or to (empty-stack)) from))
+
+(defn into-queue [to from]
+  (into (or to (empty-queue)) from))
+
+(defn terminate
+  "Internal details. Use `ic/terminate` instead."
+  [context]
+  (-> context
+      (update ::ic/stack into-stack (::ic/queue context))
+      (dissoc ::ic/queue)))
 
 (defn stage
   "Shared logic for executing stages."
-  [context stage-k from-k to-k]
-  (letfn [(advance [context interceptor]
-            (-> context
-                (update from-k pop)
-                (update to-k (fnil conj []) interceptor)))
-          (errors [context interceptor t]
-            (update context
-                    ::ic/errors
-                    (fnil conj [])
-                    {:stage-k stage-k :interceptor interceptor :t t}))]
-    (loop [{from from-k :as ctx} context]
-      (if-let [{stage-fn stage-k :as interceptor} (peek from)]
-        (let [advanced (advance ctx interceptor)]
-          (if stage-fn
-            (recur (try (stage-fn advanced)
-                        (catch Throwable t
-                          (errors advanced interceptor t))))
-            (recur advanced)))
-        ctx))))
+  ([context stage-k from-k]
+   (stage context stage-k from-k nil))
+  ([context stage-k from-k to-k]
+   (letfn [(recovered? [context stage-k]
+             (and (identical? :error stage-k)
+                  (not (:error context))))
+           (advance [context stage-k interceptor]
+             (if (recovered? context stage-k)
+               (stage context :leave ::ic/stack)
+               (cond-> context
+                 true (update from-k pop)
+                 to-k (update to-k push-stack interceptor))))
+           (error [context interceptor e]
+             (let [msg (cond-> "Interceptor error"
+                         (ex-message e) (str ": " (ex-message e)))
+                   data (merge {:stage stage-k
+                                :interceptor interceptor}
+                               (ex-data e))
+                   err (ex-info msg data e)]
+               (-> context
+                   terminate
+                   (assoc :error err)
+                   (stage :error ::ic/stack))))]
+     (loop [{from from-k :as ctx} context]
+       (if-let [{stage-fn stage-k :as interceptor} (peek from)]
+         (if stage-fn
+           (recur (try (-> ctx stage-fn (advance stage-k interceptor))
+                       (catch Exception e
+                         (error context interceptor e))))
+           (recur (advance ctx stage-k interceptor)))
+         ctx)))))
 
 (defn enter [context]
   (stage context :enter ::ic/queue ::ic/stack))
 
 (defn leave [context]
-  (stage context :leave ::ic/stack ::ic/finished))
+  (stage context :leave ::ic/stack))
 
-(defn execute-fn [{:keys [request] :as context}]
-  (if (skip? context)
-    context
-    (try
-      (let [ret (apply (:raw request) (:args request))]
-        (assoc-in context [:response :ret] ret))
-      (catch Throwable t
-        (assoc context :error (Throwable->map t))))))
-
-(defn terminate
-  "Short circuit into the :leave stage."
-  [{::ic/keys [queue] :as context}]
-  (-> context
-      (update ::ic/stack (fnil into []) queue)
-      (update ::ic/queue empty)))
+(def handler
+  "Function interceptor handler as an interceptor."
+  {:enter (fn enter [{{:keys [raw args]} :request :as context}]
+            (let [ret (apply raw args)]
+              (assoc-in context [:response :ret] ret)))})

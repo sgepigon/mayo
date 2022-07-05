@@ -16,6 +16,13 @@
 (defn- unregister! [sym]
   (swap! registry update sym dissoc ::instrument))
 
+(defn- run
+  "Return the function output from `context`."
+  [context]
+  (if-let [e (:error context)]
+    (throw e)
+    (-> context :response :ret)))
+
 (defn- var->raw [v]
   (-> v meta ::context :request :raw))
 
@@ -31,8 +38,8 @@
            (fn wrap [& args]
              (-> ctx
                  (assoc-in [:request :args] args)
-                 (ic/execute interceptors)
-                 ic/run))))))))
+                 (ic/execute (conj (vec interceptors) ic.impl/handler))
+                 run))))))))
 
 (defn- unstrument-1 [sym]
   (when-let [resolved (resolve sym)]
@@ -87,11 +94,6 @@
                       sym))))
            (cond-> @registry
              (-> syms meta ::registry not) (select-keys syms))))))
-
-(defn errors
-  "Return a collection of errors instrumenting or unstrumenting `sym`."
-  [sym]
-  (get-in @registry [sym ::ic/errors]))
 
 (comment
   (require '[clojure.spec.test.alpha :as stest])

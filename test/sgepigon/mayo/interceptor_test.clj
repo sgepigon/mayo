@@ -6,6 +6,7 @@
    [sgepigon.mayo.experimental.interceptors :as exp.ics]
    [sgepigon.mayo.extensions.spec.alpha :as ext.s]
    [sgepigon.mayo.interceptor :as ic]
+   [sgepigon.mayo.interceptor.impl :as ic.impl]
    [sgepigon.mayo.interceptor.specs]))
 
 ;;;; Helper functions
@@ -47,71 +48,71 @@
   [x]
   (inc x))
 
-(deftest errors-test
+(def bad
+  "Testing exceptions caused by errors in interceptors themselves."
+  {:name ::bad
+   :enter #(update % ::bad inc)})
+
+(def recover
+  "Test that :leave stages resume if an :error is handled."
+  {:name ::recover
+   :error #(dissoc % :error)
+   :leave #(assoc % ::recover true)})
+
+(deftest bad-interceptor-test
   (let [args '(1)
-        badceptor {:name ::badceptor
-                   :enter #(update % ::badceptor inc)
-                   :leave #(update % ::badceptor inc)}
-        ics [badceptor]
+        ics [bad ic.impl/handler]
         executed (-> (apply wrap->ctx `test-fn args)
                      (ic/execute ics))]
-    (testing "Issues with interceptors themselves are captured in
-    `::ic/errors.`"
-      (is (= (apply test-fn args) (-> executed :response :ret)))
-      (testing "Both `badceptor`'s `:enter` and `:leave` should be captured in
-        `::ic/errors`."
-        (is (= 2 (count (::ic/errors executed))))
-        (is (= {::badceptor #{:enter :leave}}
-               (reduce (fn [acc {:keys [interceptor stage-k]}]
-                         (update acc (:name interceptor) (fnil conj #{}) stage-k))
-                       {}
-                       (::ic/errors executed))))))))
+    (testing "`bad`'s stage `:enter` should be captured in `:error`."
+      (is (= "Interceptor error" (-> executed :error ex-message)))
+      (is (= ::bad (-> executed :error ex-data :interceptor :name)))
+      (is (= :enter (-> executed :error ex-data :stage))))))
+
+(deftest recover-test
+  (let [args '(1)
+        ics [bad {:leave #(assoc % ::other-leave-run? true)} recover ic.impl/handler]
+        executed (-> (apply wrap->ctx `test-fn args)
+                     (ic/execute ics))]
+    (testing "`bad`'s stage `:enter` should be captured in `:error`."
+      (is (nil? (:error executed)))
+      (is (true? (::recover executed)))
+      (is (true? (::other-leave-run? executed))
+          "`::other-leave-run?` runs after `recover`.")
+      (is (nil? (-> executed :response :ret))
+          "`ic.impl/handler` shouldn't run because its leave runs before `recover`."))))
 
 (deftest fspec-test
   (let [test-sym `test-fn
-        default-ics [(ext.s/fspec)]
-        no-fail-fast-ics [(ext.s/fspec {:args true :fail-fast? false})]
+        default-ics [(ext.s/fspec) ic.impl/handler]
         valid-args '(1)
         invalid-args '(1.0)
         valid-ctx (apply wrap->ctx test-sym valid-args)
         invalid-ctx (apply wrap->ctx test-sym invalid-args)
         valid-executed (ic/execute valid-ctx default-ics)
-        invalid-executed (ic/execute invalid-ctx default-ics)
-        no-fail-fast-executed (ic/execute invalid-ctx no-fail-fast-ics)]
+        invalid-executed (ic/execute invalid-ctx default-ics)]
     (testing "`ext.s/fspec` doesn't affect `:request` or `:response` values."
       (is (= test-sym
              (-> valid-executed :request :sym)
-             (-> invalid-executed :request :sym)
-             (-> no-fail-fast-executed :request :sym)))
+             (-> invalid-executed :request :sym)))
       (is (= (:request valid-ctx) (:request valid-executed)))
       (is (= (:request invalid-ctx)
-             (:request invalid-executed)
-             (:request no-fail-fast-executed)))
+             (:request invalid-executed)))
       (is (== (apply test-fn valid-args)
-              (-> valid-executed :response :ret)
-              (-> no-fail-fast-executed :response :ret))))
-    (testing "Default `ext.s/fspec` fails fast and does not produce a
-    `:response` map."
-      (is (::ic/skip? invalid-executed))
-      (is (not (::ic/skip? no-fail-fast-executed)))
-      (is (not (contains? invalid-executed :response)))
-      (is (contains? no-fail-fast-executed :response)))
+              (-> valid-executed :response :ret))))
+    (testing "`ext.s/fspec` fails fast and does not produce a `:response` map."
+      (is (not (contains? invalid-executed :response))))
     (testing "`:error` data"
       (is (not (contains? valid-executed :error)))
       (is (contains? invalid-executed :error))
-      (is (contains? no-fail-fast-executed :error))
       (is (= (str "Call to " test-sym " did not conform to spec.")
-             (-> invalid-executed :error :msg)
-             (-> no-fail-fast-executed :error :msg)))
+             (-> invalid-executed :error ex-message)))
       (is (= invalid-args
              (-> invalid-executed :request :args)
-             (-> no-fail-fast-executed :request :args)
-             (-> invalid-executed :error :data ::s/args)
-             (-> no-fail-fast-executed :error :data ::s/args)))
+             (-> invalid-executed :error ex-data ::s/args)))
       (testing "`stest/instrument` compatibility"
         (is (= :instrument
-               (-> invalid-executed :error :data ::s/failure)
-               (-> no-fail-fast-executed :error :data ::s/failure))
+               (-> invalid-executed :error ex-data ::s/failure))
             "`:clojure.spec.alpha/failure :instrument`")))))
 
 (comment
@@ -119,6 +120,6 @@
   (stest/unstrument)
 
   (ic/execute (wrap->ctx `test-fn 2.0)
-              [(ext.s/fspec {:args true}) exp.ics/no-op])
+              [(ext.s/fspec {:args true}) exp.ics/no-op ic.impl/handler])
 
   (keys (ns-publics *ns*)))
