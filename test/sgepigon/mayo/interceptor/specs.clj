@@ -22,7 +22,7 @@
 (s/def ::args coll?)
 (s/def ::ret any?)
 
-(s/def ::ic/queue ::interceptors)
+(s/def ::ic/queue (s/nilable ::interceptors))
 (s/def ::ic/stack ::interceptors)
 
 (s/def ::request

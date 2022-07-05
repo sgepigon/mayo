@@ -67,6 +67,7 @@
 
 (def handler
   "Function interceptor handler as an interceptor."
-  {:enter (fn enter [{{:keys [raw args]} :request :as context}]
+  {:name ::handler
+   :enter (fn enter [{{:keys [raw args]} :request :as context}]
             (let [ret (apply raw args)]
               (assoc-in context [:response :ret] ret)))})
