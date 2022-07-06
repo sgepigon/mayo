@@ -1,25 +1,14 @@
 (ns sgepigon.mayo.extensions.spec.alpha
   (:require
-   [clojure.spec.alpha :as s]
-   [sgepigon.mayo.interceptor :as ic]))
+   [clojure.spec.alpha :as s]))
 
 ;;;; Implementation
 
 ;; fspec
 
-(defn- found? [x]
-  (not (identical? ::not-found x)))
-
-(defn- ->args [ctx]
-  (get-in ctx [:request :args] ::not-found))
-(defn- ->ret [ctx]
-  (get-in ctx [:response :ret] ::not-found))
-(defn- ->fn [ctx]
-  (let [args (->args ctx)
-        ret (->ret ctx)]
-    (if (and (found? args) (found? ret))
-      {:args args :ret ret}
-      ::not-found)))
+(defn- ->args [ctx] (-> ctx :request :args))
+(defn- ->ret [ctx] (-> ctx :response :ret))
+(defn- ->fn [ctx] {:args (->args ctx) :ret (->ret ctx)})
 
 (defn- stage-fn
   "Return a function that can be used for an interceptor stage.
@@ -32,21 +21,17 @@
   stage-fn returns"
   [stage fspec-k data-fn]
   (fn validate [{{:keys [sym]} :request :as ctx}]
-    (let [spec (some-> sym s/get-spec fspec-k)
-          x (data-fn ctx)]
-      (if-let [ed (and spec (found? x) (s/explain-data spec x))]
-        (let [msg (str "Call to " sym " did not conform to spec.")
-              data (cond-> {:stage stage
-                            :interceptor ::fspec
-                            ::s/fn sym
-                            ::s/failure :instrument}
-                     true (into ed)
-                     (identical? :args fspec-k) (assoc ::s/args (::s/value ed))
-                     (identical? :ret fspec-k) (assoc ::s/ret (::s/value ed)))]
-          (-> ctx
-              (assoc :error (ex-info msg data))
-              ic/terminate))
-        ctx))))
+    (if-let [ed (some-> sym s/get-spec fspec-k (s/explain-data (data-fn ctx)))]
+      (let [msg (str "Call to " sym " did not conform to spec.")
+            data (cond-> {:stage stage
+                          :interceptor ::fspec
+                          ::s/fn sym
+                          ::s/failure :instrument}
+                   true (into ed)
+                   (identical? :args fspec-k) (assoc ::s/args (::s/value ed))
+                   (identical? :ret fspec-k) (assoc ::s/ret (::s/value ed)))]
+        (assoc ctx :error (ex-info msg data)))
+      ctx)))
 
 ;; fdef
 

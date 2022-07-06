@@ -28,6 +28,7 @@
          (stest/instrumentable-syms))))
 
 (instrument-ns 'ic)
+(instrument-ns 'ic.impl)
 
 (defn- wrap->ctx
   "Helper fn: much of this logic is inlined at `is/instrument-1`."
@@ -59,28 +60,34 @@
    :error #(dissoc % :error)
    :leave #(assoc % ::recover true)})
 
+(def leave-ic
+  "Interceptor to capture :leave behavior."
+  {:name ::leave-ic :leave #(assoc % ::leave-ic true)})
+
 (deftest bad-interceptor-test
   (let [args '(1)
-        ics [bad ic.impl/handler]
+        ics [bad leave-ic ic.impl/handler]
         executed (-> (apply wrap->ctx `test-fn args)
                      (ic/execute ics))]
     (testing "`bad`'s stage `:enter` should be captured in `:error`."
       (is (= "Interceptor error" (-> executed :error ex-message)))
       (is (= ::bad (-> executed :error ex-data :interceptor :name)))
-      (is (= :enter (-> executed :error ex-data :stage))))))
+      (is (= :enter (-> executed :error ex-data :stage))))
+    (is (nil? (::leave-ic executed))
+        "`leave-ic` doesn't run since `:error` isn't handled by any interceptor.")))
 
 (deftest recover-test
   (let [args '(1)
-        ics [bad {:leave #(assoc % ::other-leave-run? true)} recover ic.impl/handler]
+        ics [bad leave-ic recover ic.impl/handler]
         executed (-> (apply wrap->ctx `test-fn args)
                      (ic/execute ics))]
-    (testing "`bad`'s stage `:enter` should be captured in `:error`."
-      (is (nil? (:error executed)))
-      (is (true? (::recover executed)))
-      (is (true? (::other-leave-run? executed))
-          "`::other-leave-run?` runs after `recover`.")
-      (is (nil? (-> executed :response :ret))
-          "`ic.impl/handler` shouldn't run because its leave runs before `recover`."))))
+    (is (nil? (:error executed))
+        "`recover` handles the `:error`.")
+    (is (true? (::recover executed)))
+    (is (true? (::leave-ic executed))
+        "`leave-ic` runs after `recover` handles the error.")
+    (is (nil? (-> executed :response :ret))
+        "`ic.impl/handler` shouldn't run because its :leave runs before `recover`.")))
 
 (deftest fspec-test
   (let [test-sym `test-fn
