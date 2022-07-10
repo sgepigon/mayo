@@ -22,7 +22,6 @@
     <url>https://github.com/sgepigon/mayo</url>
     <connection>scm:git:git://github.com/sgepigon/mayo.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/sgepigon/mayo.git</developerConnection>
-    <tag>v0.1.0-SNAPSHOT</tag>
   </scm>
   <dependencies>
     <dependency>
