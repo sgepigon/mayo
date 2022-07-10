@@ -2,6 +2,7 @@
   (:require
    [clojure.spec.alpha :as s]
    [clojure.spec.test.alpha :as stest]
+   [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
    [sgepigon.mayo.experimental.interceptors :as exp.ics]
    [sgepigon.mayo.extensions.spec.alpha :as ext.s]
@@ -70,7 +71,7 @@
         executed (-> (apply wrap->ctx `test-fn args)
                      (ic/execute ics))]
     (testing "`bad`'s stage `:enter` should be captured in `:error`."
-      (is (= "Interceptor error" (-> executed :error ex-message)))
+      (is (str/starts-with? (-> executed :error ex-message) "Interceptor error"))
       (is (= ::bad (-> executed :error ex-data :interceptor :name)))
       (is (= :enter (-> executed :error ex-data :stage))))
     (is (nil? (::leave-ic executed))
